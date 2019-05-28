@@ -36,7 +36,7 @@ opt = parser.parse_args()
 opt.train_plot = True
 opt.save_dir = os.path.join(opt.checkpoints_dir,opt.name)
 if(not os.path.exists(opt.save_dir)):
-    os.mkdir(opt.save_dir)
+    os.makedirs(opt.save_dir)
 
 # initialize model
 model = dm.DistModel()
@@ -53,48 +53,49 @@ visualizer = Visualizer(opt)
 
 total_steps = 0
 fid = open(os.path.join(opt.checkpoints_dir,opt.name,'train_log.txt'),'w+')
-for epoch in range(1, opt.nepoch + opt.nepoch_decay + 1):
-    epoch_start_time = time.time()
-    for i, data in enumerate(dataset):
-        iter_start_time = time.time()
-        total_steps += opt.batch_size
-        epoch_iter = total_steps - dataset_size * (epoch - 1)
+if __name__ == '__main__': # Windows adaptations
+    for epoch in range(1, opt.nepoch + opt.nepoch_decay + 1):
+        epoch_start_time = time.time()
+        for i, data in enumerate(dataset):
+            iter_start_time = time.time()
+            total_steps += opt.batch_size
+            epoch_iter = total_steps - dataset_size * (epoch - 1)
 
-        model.set_input(data)
-        model.optimize_parameters()
+            model.set_input(data)
+            model.optimize_parameters()
 
-        if total_steps % opt.display_freq == 0:
-            visualizer.display_current_results(model.get_current_visuals(), epoch)
+            if total_steps % opt.display_freq == 0:
+                visualizer.display_current_results(model.get_current_visuals(), epoch)
 
-        if total_steps % opt.print_freq == 0:
-            errors = model.get_current_errors()
-            t = (time.time()-iter_start_time)/opt.batch_size
-            t2o = (time.time()-epoch_start_time)/3600.
-            t2 = t2o*D/(i+.0001)
-            visualizer.print_current_errors(epoch, epoch_iter, errors, t, t2=t2, t2o=t2o, fid=fid)
+            if total_steps % opt.print_freq == 0:
+                errors = model.get_current_errors()
+                t = (time.time()-iter_start_time)/opt.batch_size
+                t2o = (time.time()-epoch_start_time)/3600.
+                t2 = t2o*D/(i+.0001)
+                visualizer.print_current_errors(epoch, epoch_iter, errors, t, t2=t2, t2o=t2o, fid=fid)
 
-            for key in errors.keys():
-                visualizer.plot_current_errors_save(epoch, float(epoch_iter)/dataset_size, opt, errors, keys=[key,], name=key, to_plot=opt.train_plot)
+                for key in errors.keys():
+                    visualizer.plot_current_errors_save(epoch, float(epoch_iter)/dataset_size, opt, errors, keys=[key,], name=key, to_plot=opt.train_plot)
 
-            if opt.display_id > 0:
-                visualizer.plot_current_errors(epoch, float(epoch_iter)/dataset_size, opt, errors)
+                if opt.display_id > 0:
+                    visualizer.plot_current_errors(epoch, float(epoch_iter)/dataset_size, opt, errors)
 
-        if total_steps % opt.save_latest_freq == 0:
-            print('saving the latest model (epoch %d, total_steps %d)' %
+            if total_steps % opt.save_latest_freq == 0:
+                print('saving the latest model (epoch %d, total_steps %d)' %
+                      (epoch, total_steps))
+                model.save(opt.save_dir, 'latest')
+
+        if epoch % opt.save_epoch_freq == 0:
+            print('saving the model at the end of epoch %d, iters %d' %
                   (epoch, total_steps))
             model.save(opt.save_dir, 'latest')
+            model.save(opt.save_dir, epoch)
 
-    if epoch % opt.save_epoch_freq == 0:
-        print('saving the model at the end of epoch %d, iters %d' %
-              (epoch, total_steps))
-        model.save(opt.save_dir, 'latest')
-        model.save(opt.save_dir, epoch)
+        print('End of epoch %d / %d \t Time Taken: %d sec' %
+              (epoch, opt.nepoch + opt.nepoch_decay, time.time() - epoch_start_time))
 
-    print('End of epoch %d / %d \t Time Taken: %d sec' %
-          (epoch, opt.nepoch + opt.nepoch_decay, time.time() - epoch_start_time))
+        if epoch > opt.nepoch:
+            model.update_learning_rate(opt.nepoch_decay)
 
-    if epoch > opt.nepoch:
-        model.update_learning_rate(opt.nepoch_decay)
-
-# model.save_done(True)
-fid.close()
+    # model.save_done(True)
+    fid.close()

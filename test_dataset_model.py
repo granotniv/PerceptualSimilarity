@@ -34,15 +34,18 @@ elif(opt.model in ['l2','ssim']):
 
 # embed()
 # initialize data loader
-for dataset in opt.datasets:
-	data_loader = dl.CreateDataLoader(dataset,dataset_mode=opt.dataset_mode, batch_size=opt.batch_size)
+if __name__ == '__main__': # Windows adaptations
+	for dataset in opt.datasets:
+		data_loader = dl.CreateDataLoader(dataset,dataset_mode=opt.dataset_mode, batch_size=opt.batch_size)
 
-	# evaluate model on data
-	if(opt.dataset_mode=='2afc'):
-		(score, results_verbose) = dm.score_2afc_dataset(data_loader,model.forward)
-	elif(opt.dataset_mode=='jnd'):
-		(score, results_verbose) = dm.score_jnd_dataset(data_loader,model.forward)
+		# evaluate model on data
+		if(opt.dataset_mode=='2afc'):
+			(score, results_verbose) = dm.score_2afc_dataset(data_loader,model.forward)
+		elif(opt.dataset_mode=='jnd'):
+			(score, results_verbose) = dm.score_jnd_dataset(data_loader,model.forward)
 
-	# print results
-	print('  Dataset [%s]: %.2f'%(dataset,100.*score))
+		# print results
+		with open('ResultsFile.txt', 'a') as f:
+			f.write('  Dataset [%s]: %.2f\n' % (dataset, 100. * score))
+		print('  Dataset [%s]: %.2f'%(dataset,100.*score))
 
