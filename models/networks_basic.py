@@ -54,14 +54,46 @@ class PNet(nn.Module):
         outs0 = self.net.forward(in0_sc)
         outs1 = self.net.forward(in1_sc)
 
+
+
+
+
         if(retPerLayer):
             all_scores = []
         for (kk,out0) in enumerate(outs0):
-            cur_score = (1.-util.cos_sim(outs0[kk],outs1[kk]))
+            # cur_score = (1.-util.cos_sim(outs0[kk],outs1[kk]))
+            outs0_norm = util.normalize_tensor(outs0[kk])
+            outs1_norm = util.normalize_tensor(outs1[kk])
+            outs0_mean = torch.mean(outs0_norm,dim=(2,3))
+            outs1_mean = torch.mean(outs1_norm,dim=(2,3))
+            mean_diff = torch.mean(torch.abs(torch.add(outs0_mean, -1, outs1_mean)),1)
+            # cur_score = torch.mean(torch.abs(torch.add(outs0_mean, -1, outs1_mean)),1)
+            idx = list(range(1, outs0[kk].size()[2])) + [0]
+            tv_rows0 = torch.mean(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, idx, :])), (2, 3))
+            tv_rows1 = torch.mean(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, idx, :])), (2, 3))
+            tv_cols0 = torch.mean(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, :, idx])), (2, 3))
+            tv_cols1 = torch.mean(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, :, idx])), (2, 3))
+            total_tv0 = torch.add(tv_cols0, 1, tv_rows0)
+            total_tv1 = torch.add(tv_cols1, 1, tv_rows1)
+            tv_diff = 0.5*torch.mean(torch.abs(torch.add(total_tv0, -1, total_tv1)),1)
+            # idx_up = list(range(1, outs0_norm.size()[2])) + [0]
+            # idx_down = [outs0_norm.size()[2] - 1] + list(range(0, outs0_norm.size()[2] - 1))
+            # outs0_shift_up = outs0_norm[:, :, idx_up, :]
+            # outs0_shift_down = outs0_norm[:, :, idx_down, :]
+            # outs0_shift_right = outs0_norm[:, :, :, idx_up]
+            # outs0_shift_left = outs0_norm[:, :, :, idx_down]
+            # outs1_shift_up = outs1_norm[:, :, idx_up, :]
+            # outs1_shift_down = outs1_norm[:, :, idx_down, :]
+            # outs1_shift_right = outs1_norm[:, :, :, idx_up]
+            # outs1_shift_left = outs1_norm[:, :, :, idx_down]
+            # laplacian0 = torch.add(torch.add(torch.add(torch.add(outs0_shift_up, 1, outs0_shift_down), 1, outs0_shift_left), 1,outs0_shift_right), -4, outs0_norm)
+            # laplacian1 = torch.add(torch.add(torch.add(torch.add(outs1_shift_up, 1, outs1_shift_down), 1, outs1_shift_left), 1,outs1_shift_right), -4, outs1_norm)
+            # tot_lap0 = torch.mean(torch.abs(laplacian0), (2, 3))
+            # tot_lap1 = torch.mean(torch.abs(laplacian1), (2, 3))
+            cur_score = mean_diff
             if(kk==0):
                 val = 1.*cur_score
             else:
-                # val = val + self.lambda_feat_layers[kk]*cur_score
                 val = val + cur_score
             if(retPerLayer):
                 all_scores+=[cur_score]
@@ -152,10 +184,26 @@ class PNetLin(nn.Module):
         feats1 = {}
         diffs = [0]*len(outs0)
 
+        # outs0_mean = torch.mean(util.normalize_tensor(outs0[kk]), dim=(2, 3))
+        # outs1_mean = torch.mean(util.normalize_tensor(outs1[kk]), dim=(2, 3))
+        # cur_score = torch.mean(torch.abs(torch.add(outs0_mean, -1, outs1_mean)), 1)
+
         for (kk,out0) in enumerate(outs0):
-            feats0[kk] = util.normalize_tensor(outs0[kk])
-            feats1[kk] = util.normalize_tensor(outs1[kk])
-            diffs[kk] = (feats0[kk]-feats1[kk])**2
+            # feats0[kk] = util.normalize_tensor(outs0[kk])
+            # feats1[kk] = util.normalize_tensor(outs1[kk])
+            # diffs[kk] = (feats0[kk]-feats1[kk])**2
+            # outs0_norm = util.normalize_tensor(outs0[kk])
+            # outs1_norm = util.normalize_tensor(outs1[kk])
+            # idx = list(range(1, outs0[kk].size()[2])) + [0]
+            # tv_rows0 = torch.sum(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, idx, :])), (2, 3), keepdim=True)
+            # tv_rows1 = torch.sum(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, idx, :])), (2, 3), keepdim=True)
+            # tv_cols0 = torch.sum(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, :, idx])), (2, 3), keepdim=True)
+            # tv_cols1 = torch.sum(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, :, idx])), (2, 3), keepdim=True)
+            # total_tv0 = torch.add(tv_cols0, 1, tv_rows0)
+            # total_tv1 = torch.add(tv_cols1, 1, tv_rows1)
+            outs0_mean = torch.mean(util.normalize_tensor(outs0[kk]), dim=(2, 3),keepdim=True)
+            outs1_mean = torch.mean(util.normalize_tensor(outs1[kk]), dim=(2, 3),keepdim=True)
+            diffs[kk] = torch.abs(torch.add(outs0_mean, -1, outs1_mean))
 
         if self.spatial:
             lin_models = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
@@ -164,15 +212,20 @@ class PNetLin(nn.Module):
             res = [lin_models[kk].model(diffs[kk]) for kk in range(len(diffs))]
             return res
 			
-        val = torch.mean(torch.mean(self.lin0.model(diffs[0]),dim=3),dim=2)
-        val = val + torch.mean(torch.mean(self.lin1.model(diffs[1]),dim=3),dim=2)
-        val = val + torch.mean(torch.mean(self.lin2.model(diffs[2]),dim=3),dim=2)
-        val = val + torch.mean(torch.mean(self.lin3.model(diffs[3]),dim=3),dim=2)
-        val = val + torch.mean(torch.mean(self.lin4.model(diffs[4]),dim=3),dim=2)
-        if(self.pnet_type=='squeeze'):
-            val = val + torch.mean(torch.mean(self.lin5.model(diffs[5]),dim=3),dim=2)
-            val = val + torch.mean(torch.mean(self.lin6.model(diffs[6]),dim=3),dim=2)
+        # val = torch.mean(torch.mean(self.lin0.model(diffs[0]),dim=3),dim=2)
+        # val = val + torch.mean(torch.mean(self.lin1.model(diffs[1]),dim=3),dim=2)
+        # val = val + torch.mean(torch.mean(self.lin2.model(diffs[2]),dim=3),dim=2)
+        # val = val + torch.mean(torch.mean(self.lin3.model(diffs[3]),dim=3),dim=2)
+        # val = val + torch.mean(torch.mean(self.lin4.model(diffs[4]),dim=3),dim=2)
+        # if(self.pnet_type=='squeeze'):
+        #     val = val + torch.mean(torch.mean(self.lin5.model(diffs[5]),dim=3),dim=2)
+        #     val = val + torch.mean(torch.mean(self.lin6.model(diffs[6]),dim=3),dim=2)
 
+        val = self.lin0.model(diffs[0])
+        val = val + self.lin1.model(diffs[1])
+        val = val + self.lin2.model(diffs[2])
+        val = val + self.lin3.model(diffs[3])
+        val = val + self.lin4.model(diffs[4])
         val = val.view(val.size()[0],val.size()[1],1,1)
 
         return val
