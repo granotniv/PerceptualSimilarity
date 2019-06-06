@@ -61,21 +61,52 @@ class PNet(nn.Module):
         if(retPerLayer):
             all_scores = []
         for (kk,out0) in enumerate(outs0):
-            # cur_score = (1.-util.cos_sim(outs0[kk],outs1[kk]))
+            # # cur_score = (1.-util.cos_sim(outs0[kk],outs1[kk]))
             outs0_norm = util.normalize_tensor(outs0[kk])
             outs1_norm = util.normalize_tensor(outs1[kk])
-            outs0_mean = torch.mean(outs0_norm,dim=(2,3))
-            outs1_mean = torch.mean(outs1_norm,dim=(2,3))
-            mean_diff = torch.mean(torch.abs(torch.add(outs0_mean, -1, outs1_mean)),1)
+            # outs0_norm = outs0[kk]
+            # outs1_norm = outs1[kk]
+            # outs0_mean = torch.mean(outs0_norm,dim=(2,3))
+            # outs1_mean = torch.mean(outs1_norm,dim=(2,3))
+            # mean_diff = torch.mean(torch.abs(torch.add(outs0_mean, -1, outs1_mean)),1)
+            # cur_score = mean_diff
+
+            # Fourier1 = torch.rfft(torch.reshape(outs0_norm,(outs0_norm.size()[3],outs0_norm.size()[2],outs0_norm.size()[1],outs0_norm.size()[0])),2,True,False)
+            # Fourier2 = torch.rfft(torch.reshape(outs1_norm,(outs0_norm.size()[3], outs0_norm.size()[2], outs0_norm.size()[1], outs0_norm.size()[0])), 2, True, False)
+            Fourier1 = torch.div(torch.rfft(outs0_norm, 2, False, False),(outs0_norm.size()[3])*(outs0_norm.size()[2]))
+            Fourier2 = torch.div(torch.rfft(outs1_norm, 2, False, False),(outs0_norm.size()[3])*(outs0_norm.size()[2]))
+            Fourier1 = Fourier1**2
+            Fourier2 = Fourier2**2
+            Fourier1 = torch.sqrt(torch.add(Fourier1[:,:,:,:,0],1,Fourier1[:,:,:,:,1]))
+            # Fourier1[(Fourier1==0).nonzero()] = 1
+            # Fourier1 = torch.add(Fourier1,1e-4)
+            # Fourier1 = torch.log(Fourier1)
+            Fourier2 = torch.sqrt(torch.add(Fourier2[:,:,:,:,0],1,Fourier2[:,:,:,:,1]))
+            # Fourier2[(Fourier2 == 0).nonzero()] = 1
+            # Fourier2 = torch.add(Fourier2, 1e-4)
+            # Fourier2 = torch.log(Fourier2)
+            factor = torch.zeros(outs0_norm.size()[2],outs0_norm.size()[3])
+            for i in range (outs0_norm.size()[2]):
+                for j in range (outs0_norm.size()[3]):
+                    factor[i,j] = (i+j)
+            factor = torch.exp(-1.*factor)
+            factor = factor.expand_as(Fourier1).cuda()
+            diff = torch.mul(torch.abs(torch.add(Fourier1, -1, Fourier2)),factor)
+            # sum = torch.add(Fourier1,1,Fourier2)
+            # norm_diff = torch.div(diff,sum+1e-8)
+            mean_diff = torch.mean(torch.sum(diff, (2,3)),1)
+            cur_score = mean_diff
+
+
             # cur_score = torch.mean(torch.abs(torch.add(outs0_mean, -1, outs1_mean)),1)
-            idx = list(range(1, outs0[kk].size()[2])) + [0]
-            tv_rows0 = torch.mean(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, idx, :])), (2, 3))
-            tv_rows1 = torch.mean(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, idx, :])), (2, 3))
-            tv_cols0 = torch.mean(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, :, idx])), (2, 3))
-            tv_cols1 = torch.mean(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, :, idx])), (2, 3))
-            total_tv0 = torch.add(tv_cols0, 1, tv_rows0)
-            total_tv1 = torch.add(tv_cols1, 1, tv_rows1)
-            tv_diff = 0.5*torch.mean(torch.abs(torch.add(total_tv0, -1, total_tv1)),1)
+            # idx = list(range(1, outs0[kk].size()[2])) + [0]
+            # tv_rows0 = torch.mean(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, idx, :])), (2, 3))
+            # tv_rows1 = torch.mean(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, idx, :])), (2, 3))
+            # tv_cols0 = torch.mean(torch.abs(torch.add(outs0_norm, -1, outs0_norm[:, :, :, idx])), (2, 3))
+            # tv_cols1 = torch.mean(torch.abs(torch.add(outs1_norm, -1, outs1_norm[:, :, :, idx])), (2, 3))
+            # total_tv0 = torch.add(tv_cols0, 1, tv_rows0)
+            # total_tv1 = torch.add(tv_cols1, 1, tv_rows1)
+            # tv_diff = 0.5*torch.mean(torch.abs(torch.add(total_tv0, -1, total_tv1)),1)
             # idx_up = list(range(1, outs0_norm.size()[2])) + [0]
             # idx_down = [outs0_norm.size()[2] - 1] + list(range(0, outs0_norm.size()[2] - 1))
             # outs0_shift_up = outs0_norm[:, :, idx_up, :]
@@ -90,7 +121,6 @@ class PNet(nn.Module):
             # laplacian1 = torch.add(torch.add(torch.add(torch.add(outs1_shift_up, 1, outs1_shift_down), 1, outs1_shift_left), 1,outs1_shift_right), -4, outs1_norm)
             # tot_lap0 = torch.mean(torch.abs(laplacian0), (2, 3))
             # tot_lap1 = torch.mean(torch.abs(laplacian1), (2, 3))
-            cur_score = mean_diff
             if(kk==0):
                 val = 1.*cur_score
             else:
